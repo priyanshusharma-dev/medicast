@@ -2,43 +2,67 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, ComposedChart, ReferenceLine, Scatter, BarChart, Bar, Cell } from "recharts";
-import { format, addDays } from "date-fns";
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, ComposedChart, ReferenceLine, Scatter, BarChart, Bar, Cell } from "recharts";
+import { format } from "date-fns";
+import { AlertCircle } from "lucide-react";
+
+interface Ward {
+  id: string;
+  name: string;
+  capacity: number;
+}
+
+interface ChartDataPoint {
+  date: string;
+  actual: number | null;
+  p50: number | null;
+  range: [number, number] | null;
+  p10?: number;
+  p90?: number;
+}
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function Forecasts() {
-  const [wards, setWards] = useState<any[]>([]);
+  const [wards, setWards] = useState<Ward[]>([]);
   const [selectedWard, setSelectedWard] = useState("icu");
   const [horizon, setHorizon] = useState(7);
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [capacity, setCapacity] = useState(20);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:8000/wards")
+    fetch(`${API_BASE_URL}/wards`)
       .then(r => r.json())
-      .then(w => {
+      .then((w: Ward[]) => {
         setWards(w);
-        if (w.length > 0) setCapacity(w.find((x:any) => x.id === selectedWard)?.capacity || 20);
-      });
-  }, []);
+        if (w.length > 0) setCapacity(w.find(x => x.id === selectedWard)?.capacity || 20);
+      })
+      .catch(err => console.error("Failed to fetch wards:", err));
+  }, [selectedWard]);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setError(null);
       try {
         const [actualsRes, forecastRes] = await Promise.all([
-          fetch(`http://localhost:8000/actuals?ward=${selectedWard}&days=7`),
-          fetch(`http://localhost:8000/forecast?ward=${selectedWard}&days=${horizon}`)
+          fetch(`${API_BASE_URL}/actuals?ward=${selectedWard}&days=7`),
+          fetch(`${API_BASE_URL}/forecast?ward=${selectedWard}&days=${horizon}`)
         ]);
+        
+        if (!actualsRes.ok || !forecastRes.ok) {
+          throw new Error("Failed to fetch forecast data");
+        }
+        
         const actuals = await actualsRes.json();
         const forecasts = await forecastRes.json();
         
-        // Merge for Recharts
-        // Recharts ComposedChart can plot dots for actuals and areas for forecasts
-        const merged: any[] = [];
+        const merged: ChartDataPoint[] = [];
         
-        actuals.forEach((a: any) => {
+        actuals.forEach((a: { date: string; occupancy: number }) => {
           merged.push({
             date: a.date,
             actual: a.occupancy,
@@ -47,7 +71,7 @@ export default function Forecasts() {
           });
         });
         
-        forecasts.forEach((f: any) => {
+        forecasts.forEach((f: { target_date: string; p50: number; p10: number; p90: number }) => {
           merged.push({
             date: f.target_date,
             actual: null,
@@ -64,6 +88,7 @@ export default function Forecasts() {
         }
       } catch (err) {
         console.error(err);
+        setError("Unable to load forecasts at this time. Please try again later.");
       } finally {
         setLoading(false);
       }
@@ -72,15 +97,14 @@ export default function Forecasts() {
     if (selectedWard) fetchData();
   }, [selectedWard, horizon]);
 
-  const handleWardChange = (e: any) => {
+  const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const wId = e.target.value;
     setSelectedWard(wId);
-    setCapacity(wards.find((x:any) => x.id === wId)?.capacity || 20);
+    setCapacity(wards.find(x => x.id === wId)?.capacity || 20);
   };
 
   const mockShapData = useMemo(() => {
     if (!selectedDate) return [];
-    // Just mock some SHAP values that change based on date string hash for the MVP
     const hash = selectedDate.charCodeAt(selectedDate.length - 1);
     const sign = hash % 2 === 0 ? 1 : -1;
     return [
@@ -95,24 +119,26 @@ export default function Forecasts() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Capacity Forecasts</h1>
-        <div className="flex items-center space-x-4">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Capacity Forecasts</h1>
+        <div className="flex flex-wrap items-center gap-4">
           <select 
             value={selectedWard}
             onChange={handleWardChange}
-            className="bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-[var(--primary)]"
+            aria-label="Select Ward"
+            className="bg-(--surface) border border-(--border) rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-(--primary) focus:border-transparent transition-all"
           >
             {wards.map(w => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
           </select>
           
-          <div className="flex bg-[var(--surface-2)] rounded-md p-1">
+          <div className="flex bg-(--surface-2) rounded-md p-1" role="group" aria-label="Forecast Horizon">
             {[3, 7, 14].map(days => (
               <button 
                 key={days}
                 onClick={() => setHorizon(days)}
-                className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${horizon === days ? 'bg-[var(--surface)] shadow-sm text-[var(--text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                aria-pressed={horizon === days}
+                className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${horizon === days ? 'bg-(--surface) shadow-sm text-foreground' : 'text-(--text-muted) hover:text-foreground'}`}
               >
                 {days}D
               </button>
@@ -121,17 +147,24 @@ export default function Forecasts() {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-center gap-2" role="alert">
+          <AlertCircle className="h-5 w-5" />
+          <p className="text-sm font-medium">{error}</p>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Forecast & Confidence Interval</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px] w-full">
+          <div className="h-100 w-full">
             {loading ? (
-              <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)] animate-pulse">
-                Loading forecast data...
+              <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
+                <div className="w-full h-full bg-(--surface-2) animate-pulse rounded-md opacity-50" />
               </div>
-            ) : (
+            ) : !error && chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart 
                   data={chartData} 
@@ -144,7 +177,7 @@ export default function Forecasts() {
                   <XAxis dataKey="date" tick={{fontSize: 12, fill: 'var(--text-muted)'}} tickFormatter={(val) => format(new Date(val as string), "dd MMM")} />
                   <YAxis tick={{fontSize: 12, fill: 'var(--text-muted)'}} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }}
+                    contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', color: 'var(--foreground)' }}
                     labelFormatter={(val) => format(new Date(val as string), "EEEE, dd MMM yyyy")}
                   />
                   <Legend />
@@ -160,10 +193,10 @@ export default function Forecasts() {
                   <Line type="monotone" dataKey="p50" stroke="var(--accent)" strokeWidth={2.5} dot={false} name="Forecast (P50)" />
                   
                   {/* Actuals as Dots */}
-                  <Scatter dataKey="actual" fill="var(--text)" name="Actual Census" />
+                  <Scatter dataKey="actual" fill="var(--foreground)" name="Actual Census" />
                 </ComposedChart>
               </ResponsiveContainer>
-            )}
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -174,22 +207,30 @@ export default function Forecasts() {
           <CardTitle>Decision Drivers (SHAP) - {selectedDate ? format(new Date(selectedDate), "dd MMM yyyy") : 'Select a date'}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px] w-full max-w-3xl">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mockShapData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border)" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="feature" type="category" tick={{fontSize: 12, fill: 'var(--text-muted)'}} width={120} />
-                <Tooltip cursor={{fill: 'var(--surface-2)'}} contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {mockShapData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#EF4444' : '#22C55E'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-62.5 w-full max-w-3xl">
+            {loading ? (
+              <div className="w-full h-full bg-(--surface-2) animate-pulse rounded-md opacity-50" />
+            ) : mockShapData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={mockShapData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border)" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="feature" type="category" tick={{fontSize: 12, fill: 'var(--text-muted)'}} width={120} />
+                  <Tooltip cursor={{fill: 'var(--surface-2)'}} contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', color: 'var(--foreground)' }} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {mockShapData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#EF4444' : '#22C55E'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-(--text-muted) italic">
+                No driver data available.
+              </div>
+            )}
           </div>
-          <p className="text-xs text-[var(--text-muted)] mt-2 italic">
+          <p className="text-xs text-(--text-muted) mt-2 italic">
             Positive values (Red) increase predicted occupancy. Negative values (Green) decrease it.
           </p>
         </CardContent>

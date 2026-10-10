@@ -26,10 +26,10 @@ export default function RootLayout({
             <Sidebar />
             <div className="flex flex-col flex-1 overflow-hidden">
               <Topbar />
-              <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--bg)] transition-colors duration-150">
+              <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-(--bg) transition-colors duration-150">
                 {children}
               </main>
-              <footer className="p-4 text-center text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
+              <footer className="p-4 text-center text-xs text-(--text-muted) border-t border-(--border)">
                 Simulated data. Decision support only, a human makes the final call.
               </footer>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, LayoutDashboard, Users, HeartPulse, BrainCircuit, AlertTriangle, Menu } from "lucide-react";
+import { Activity, LayoutDashboard, Users, HeartPulse, BrainCircuit, AlertTriangle } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 export default function Sidebar() {
@@ -17,10 +17,10 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="w-64 border-r border-[var(--border)] bg-[var(--surface)] flex flex-col hidden md:flex transition-colors duration-150">
-      <div className="h-16 flex items-center px-6 border-b border-[var(--border)]">
-        <Activity className="w-6 h-6 text-[var(--primary)] mr-2" />
-        <span className="font-bold text-lg text-[var(--text)] tracking-tight">MediCast</span>
+    <aside className="w-64 border-r border-(--border) bg-(--surface) flex flex-col md:flex transition-colors duration-150">
+      <div className="h-16 flex items-center px-6 border-b border-(--border)">
+        <Activity className="w-6 h-6 text-(--primary) mr-2" />
+        <span className="font-bold text-lg text-(--text) tracking-tight">MediCast</span>
       </div>
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-3">
@@ -31,8 +31,8 @@ export default function Sidebar() {
                 <Link href={item.href}>
                   <div className={`flex items-center px-3 py-2.5 rounded-lg transition-colors duration-150 ${
                     isActive 
-                      ? "bg-[var(--primary-soft)] text-[var(--primary)] font-medium" 
-                      : "text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+                      ? "bg-(--primary-soft) text-(--primary) font-medium" 
+                      : "text-(--text-muted) hover:bg-(--surface-2) hover:text-(--text)"
                   }`}>
                     <item.icon className="w-5 h-5 mr-3" />
                     {item.name}
